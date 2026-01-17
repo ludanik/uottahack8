@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import ProfessorProfile from './components/ProfessorProfile';
 import ReviewFeed from './components/ReviewFeed';
+import VoiceAssistant from './components/VoiceAssistant';
+import TextReview from './components/TextReview';
 import './App.css';
 
 // Sample professor data
@@ -77,10 +79,33 @@ const initialReviews = [
 
 function App() {
   const [reviews, setReviews] = useState(initialReviews);
+  const [showVoiceAssistant, setShowVoiceAssistant] = useState(false);
+  const [showTextReview, setShowTextReview] = useState(false);
 
-  const handleAddReview = () => {
-    // Placeholder - user will add dialog later
-    console.log("Add review button clicked");
+  const handleVoiceReview = () => {
+    setShowVoiceAssistant(true);
+  };
+
+  const handleTextReview = () => {
+    setShowTextReview(true);
+  };
+
+  const handleVoiceAssistantComplete = (reviewData) => {
+    addReview(reviewData);
+    setShowVoiceAssistant(false);
+  };
+
+  const handleVoiceAssistantClose = () => {
+    setShowVoiceAssistant(false);
+  };
+
+  const handleTextReviewComplete = (reviewData) => {
+    addReview(reviewData);
+    setShowTextReview(false);
+  };
+
+  const handleTextReviewClose = () => {
+    setShowTextReview(false);
   };
 
   const addReview = (newReview) => {
@@ -111,10 +136,25 @@ function App() {
         <ProfessorProfile professor={professorData} />
         <ReviewFeed 
           reviews={reviews} 
-          onAddReview={handleAddReview}
+          onVoiceReview={handleVoiceReview}
+          onTextReview={handleTextReview}
           totalRatings={professorData.totalRatings}
         />
       </main>
+
+      {showVoiceAssistant && (
+        <VoiceAssistant
+          onComplete={handleVoiceAssistantComplete}
+          onClose={handleVoiceAssistantClose}
+        />
+      )}
+
+      {showTextReview && (
+        <TextReview
+          onComplete={handleTextReviewComplete}
+          onClose={handleTextReviewClose}
+        />
+      )}
     </div>
   );
 }

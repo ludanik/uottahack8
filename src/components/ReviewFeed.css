@@ -31,6 +31,12 @@
   cursor: pointer;
 }
 
+.review-buttons {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
 .add-review-btn {
   padding: 12px 24px;
   background-color: #000;
@@ -40,11 +46,31 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .add-review-btn:hover {
   background-color: #333;
+  transform: translateY(-1px);
+}
+
+.voice-review-btn {
+  background-color: #007bff;
+}
+
+.voice-review-btn:hover {
+  background-color: #0056b3;
+}
+
+.text-review-btn {
+  background-color: #6c757d;
+}
+
+.text-review-btn:hover {
+  background-color: #545b62;
 }
 
 .reviews-list {

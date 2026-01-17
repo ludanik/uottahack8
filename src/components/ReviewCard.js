@@ -66,9 +66,9 @@ function ReviewCard({ review }) {
               <strong>For Credit:</strong> {forCredit ? 'Yes' : 'No'}
             </span>
           )}
-          {attendance && (
+          {attendance && attendance !== 'N/A' && (
             <span className="meta-item">
-              <strong>Attendance:</strong> <span className={attendance === 'Mandatory' ? 'mandatory' : ''}>{attendance}</span>
+              <strong>Attendance:</strong> <span className={attendance === 'Yes' ? 'mandatory' : ''}>{attendance === 'Yes' ? 'Mandatory' : attendance === 'No' ? 'Optional' : attendance}</span>
             </span>
           )}
           {wouldTakeAgain !== null && (

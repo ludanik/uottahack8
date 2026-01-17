@@ -2,7 +2,7 @@ import React from 'react';
 import ReviewCard from './ReviewCard';
 import './ReviewFeed.css';
 
-function ReviewFeed({ reviews, onAddReview, totalRatings }) {
+function ReviewFeed({ reviews, onVoiceReview, onTextReview, totalRatings }) {
   return (
     <div className="review-feed">
       <div className="feed-header">
@@ -12,9 +12,14 @@ function ReviewFeed({ reviews, onAddReview, totalRatings }) {
             <option value="all">All courses</option>
           </select>
         </div>
-        <button className="add-review-btn" onClick={onAddReview}>
-          + Add Review
-        </button>
+        <div className="review-buttons">
+          <button className="add-review-btn voice-review-btn" onClick={onVoiceReview}>
+            🎤 Voice Review
+          </button>
+          <button className="add-review-btn text-review-btn" onClick={onTextReview}>
+            💬 Text Review
+          </button>
+        </div>
       </div>
       
       <div className="reviews-list">
