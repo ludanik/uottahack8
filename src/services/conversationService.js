@@ -12,59 +12,64 @@ export class ConversationService {
       conversationHistory: []
     };
     
-    // Core questions to cover (SurveyMonkey style)
+    // Core questions to cover (SurveyMonkey style) - more natural and conversational flow
     this.questionFlow = {
       greeting: {
-        message: "Hey! Thanks for taking a moment to share your feedback about the lecture. How are you doing today?",
+        message: "Hey! Thanks for taking a moment to share your feedback about your course. How are you doing today?",
         nextPhase: 'initialFeedback'
       },
       initialFeedback: {
-        message: "Great! Let's start - can you tell me what course you're reviewing?",
+        message: "Great! Let's start - what course are you reviewing today?",
         extractField: 'course',
         nextPhase: 'overallRating'
       },
       overallRating: {
-        message: "Got it! On a scale of 1 to 5, how would you rate your overall experience with this course? Just say a number or describe it in your own words.",
+        message: "Perfect! On a scale of 1 to 5, how would you rate your overall experience with this course? Just say a number or tell me how it went.",
         extractField: 'quality',
         nextPhase: 'difficulty'
       },
       difficulty: {
-        message: "And how difficult would you say this course is? Again, 1 to 5, or just tell me how challenging you found it.",
+        message: "Got it! And how difficult would you say this course was? Again, 1 to 5 - or just tell me how challenging you found it.",
         extractField: 'difficulty',
+        nextPhase: 'courseStatus'
+      },
+      courseStatus: {
+        message: "Thanks! Are you currently taking this course, or have you already completed it?",
+        extractField: 'courseStatus',
         nextPhase: 'detailedFeedback'
       },
       detailedFeedback: {
-        message: "Perfect. Can you tell me more about what stood out to you? Maybe the teaching style, the material, or something specific about the lectures?",
+        message: "Awesome. Can you tell me more about what stood out to you? Maybe the teaching style, the material, or something specific about the lectures?",
         extractField: 'comment',
-        nextPhase: 'additionalQuestions'
-      },
-      additionalQuestions: {
-        message: "Thanks for sharing! A few quick questions: Did you take this course for credit?",
-        extractField: 'forCredit',
         nextPhase: 'attendance'
       },
       attendance: {
-        message: "What about attendance - was it mandatory or optional?",
+        message: "That's really helpful! What about attendance - was it mandatory or optional?",
         extractField: 'attendance',
+        nextPhase: 'textbook'
+      },
+      textbook: {
+        message: "Got it. Did you need to use a textbook for this course?",
+        extractField: 'textbook',
+        nextPhase: 'forCredit'
+      },
+      forCredit: {
+        message: "And did you take this course for credit?",
+        extractField: 'forCredit',
         nextPhase: 'wouldTakeAgain'
       },
       wouldTakeAgain: {
-        message: "Got it. Would you take this course again if given the chance?",
+        message: "Cool. Last question - would you take this course again if given the chance?",
         extractField: 'wouldTakeAgain',
         nextPhase: 'grade'
       },
       grade: {
-        message: "And what grade did you get, if you don't mind sharing?",
+        message: "Perfect! Would you be comfortable sharing the grade you got in this course?",
         extractField: 'grade',
-        nextPhase: 'textbook'
-      },
-      textbook: {
-        message: "One last thing - did you need to use a textbook for this course?",
-        extractField: 'textbook',
         nextPhase: 'closing'
       },
       closing: {
-        message: "Awesome! That's everything I needed. Your feedback has been saved and will help other students make informed decisions. Thanks again!",
+        message: "Awesome! That's everything I needed. Your feedback has been saved and will help other students make informed decisions. Thanks so much for sharing!",
         nextPhase: 'complete'
       }
     };
@@ -95,6 +100,30 @@ export class ConversationService {
     return phase ? phase.message : "Thank you for your feedback!";
   }
 
+  // Check if response indicates user needs time or doesn't know
+  isIrregularResponse(response) {
+    const lowerResponse = response.toLowerCase().trim();
+    
+    // Check for explicit time requests
+    const timeRequests = ['gimme a second', 'give me a second', 'hold on', 'wait', 'one sec', 'one second', 'just a moment'];
+    if (timeRequests.some(pattern => lowerResponse.includes(pattern))) {
+      return true;
+    }
+    
+    // Check for uncertainty/don't know responses (but only if it's a short response)
+    if (lowerResponse.length < 40) {
+      const uncertaintyPatterns = [
+        "i don't know", "i don't remember", "idk", "don't know", "don't remember",
+        'not sure', 'not really sure', "i'm not sure", "i'm not really sure"
+      ];
+      if (uncertaintyPatterns.some(pattern => lowerResponse.includes(pattern))) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
+
   // Process user response and extract data (now async for OpenAI integration)
   async processResponse(userResponse) {
     const lowerResponse = userResponse.toLowerCase();
@@ -107,6 +136,122 @@ export class ConversationService {
       message: userResponse,
       phase: currentPhase
     });
+
+    // If conversation is already in closing or complete phase, just acknowledge and end
+    if (currentPhase === 'closing' || currentPhase === 'complete') {
+      // Conversation is done - just acknowledge any response and mark as complete
+      const acknowledgment = "Thanks again! Have a great day!";
+      this.conversationState.conversationHistory.push({
+        type: 'assistant',
+        message: acknowledgment,
+        phase: 'complete'
+      });
+      
+      // Ensure phase is set to complete
+      this.conversationState.currentPhase = 'complete';
+      
+      return {
+        assistantMessage: acknowledgment,
+        phase: 'complete',
+        collectedData: { ...this.conversationState.collectedData },
+        isComplete: true
+      };
+    }
+    
+    // Handle irregular responses (user needs time, doesn't know, etc.)
+    if (this.isIrregularResponse(userResponse)) {
+      let assistantMessage = null;
+      
+      // Try OpenAI for natural response to irregular input
+      if (openAIService.isConfigured()) {
+        assistantMessage = await openAIService.generateResponse(
+          this.conversationState.conversationHistory,
+          currentPhase, // Stay on current phase
+          this.conversationState.collectedData,
+          userResponse
+        );
+      }
+      
+      // Check if it's a time request (needs time) or uncertainty (doesn't know)
+      const isTimeRequest = lowerResponse.includes('second') || 
+                           lowerResponse.includes('wait') || 
+                           lowerResponse.includes('hold') ||
+                           lowerResponse.includes('moment');
+      
+      const isUncertainty = lowerResponse.includes("don't know") || 
+                           lowerResponse.includes("not sure") || 
+                           lowerResponse.includes("don't remember") ||
+                           lowerResponse.includes("idk");
+      
+      // Fallback to friendly predefined responses
+      if (!assistantMessage) {
+        if (isTimeRequest) {
+          // For time requests, acknowledge and wait - stay on same phase
+          assistantMessage = "No problem, I'll give you a second! Just let me know when you're ready.";
+        } else if (isUncertainty) {
+          // For uncertainty, be understanding and move on
+          assistantMessage = "That's totally okay! No worries if you're not sure. Let me know when you remember, or we can skip this one.";
+        } else {
+          assistantMessage = "No worries! " + (phaseConfig?.message || this.getCurrentMessage());
+        }
+      }
+      
+      // Handle time requests - stay on same phase and wait
+      if (isTimeRequest) {
+        // Don't move forward, just acknowledge and wait for next response
+        // Phase stays the same
+        this.conversationState.conversationHistory.push({
+          type: 'assistant',
+          message: assistantMessage,
+          phase: currentPhase // Stay on current phase
+        });
+        
+        return {
+          assistantMessage,
+          phase: currentPhase, // Return current phase (not moving forward)
+          collectedData: { ...this.conversationState.collectedData },
+          isComplete: false
+        };
+      }
+      
+      // Handle uncertainty - skip this field and move forward
+      if (isUncertainty) {
+        // Skip extracting data for this field, but move to next phase
+        let nextPhase = phaseConfig?.nextPhase || 'complete';
+        
+        // Conditionally skip grade if course is not completed
+        if (nextPhase === 'grade') {
+          const courseStatus = this.conversationState.collectedData.courseStatus;
+          if (courseStatus === 'currently_taking') {
+            nextPhase = 'closing';
+          }
+        }
+        
+        this.conversationState.currentPhase = nextPhase;
+        
+        // If we've moved to closing, use closing message
+        if (nextPhase === 'closing' || nextPhase === 'complete') {
+          const closingConfig = this.questionFlow.closing;
+          assistantMessage = closingConfig?.message || "Thanks for sharing what you could!";
+        } else {
+          // Otherwise, move to next question
+          assistantMessage = "That's totally okay! " + (this.getCurrentMessage() || "Let's continue.");
+        }
+      }
+      
+      this.conversationState.conversationHistory.push({
+        type: 'assistant',
+        message: assistantMessage,
+        phase: this.conversationState.currentPhase
+      });
+      
+      return {
+        assistantMessage,
+        phase: this.conversationState.currentPhase,
+        collectedData: { ...this.conversationState.collectedData },
+        isComplete: this.conversationState.currentPhase === 'complete'
+      };
+    }
 
     // Handle adaptive_followup phase - should continue collecting comment and then move forward
     if (currentPhase === 'adaptive_followup') {
@@ -200,6 +345,16 @@ export class ConversationService {
 
     // Move to next phase
     let nextPhase = phaseConfig?.nextPhase || 'complete';
+    
+    // Conditionally skip grade if course is not completed
+    if (nextPhase === 'grade') {
+      const courseStatus = this.conversationState.collectedData.courseStatus;
+      // Only ask for grade if course is completed (skip if currently taking)
+      if (courseStatus === 'currently_taking') {
+        nextPhase = 'closing'; // Skip grade question if still taking the course
+      }
+      // If courseStatus is 'completed' or not set (default to completed), ask for grade
+    }
     
     // Update phase BEFORE generating response so context is correct
     this.conversationState.currentPhase = nextPhase;
@@ -307,6 +462,28 @@ export class ConversationService {
       case 'comment':
         return response.trim();
         
+      case 'courseStatus':
+        // Extract whether course is currently taking or completed
+        if (lowerResponse.includes('currently taking') || 
+            lowerResponse.includes('taking now') || 
+            lowerResponse.includes('taking it') ||
+            lowerResponse.includes('in progress') ||
+            lowerResponse.includes('still taking') ||
+            lowerResponse.includes('currently in')) {
+          return 'currently_taking';
+        }
+        if (lowerResponse.includes('completed') || 
+            lowerResponse.includes('finished') || 
+            lowerResponse.includes('done') ||
+            lowerResponse.includes('already completed') ||
+            lowerResponse.includes('took it') ||
+            lowerResponse.includes('took the course') ||
+            lowerResponse.includes('already took')) {
+          return 'completed';
+        }
+        // Default to completed if unclear (assume they finished it)
+        return 'completed';
+        
       case 'forCredit':
         if (lowerResponse.includes('yes') || lowerResponse.includes('yeah') || lowerResponse.includes('yep') || 
             lowerResponse.includes('for credit') || lowerResponse.includes('course credit')) return true;
@@ -347,10 +524,49 @@ export class ConversationService {
         return null;
         
       case 'grade':
-        // Extract grade (A+, A, A-, B+, B, etc.)
+        // Valid grades: F, D-, D, D+, C-, C, C+, B-, B, B+, A-, A, A+
+        // Extract grade pattern (letter with optional + or -)
         const gradeMatch = response.match(/\b([A-F][+-]?)\b/i);
-        if (gradeMatch) return gradeMatch[1].toUpperCase();
-        return response.trim();
+        if (gradeMatch) {
+          let grade = gradeMatch[1].toUpperCase();
+          const letter = grade[0];
+          const modifier = grade.length > 1 ? grade[1] : '';
+          
+          // Validate: F can only be F (no modifiers)
+          if (letter === 'F') {
+            if (modifier) return 'N/A'; // F+ or F- is invalid
+            return 'F';
+          }
+          
+          // Validate: D-, D, D+, C-, C, C+, B-, B, B+, A-, A, A+
+          // Only A, B, C, D can have - or + modifiers
+          if (['A', 'B', 'C', 'D'].includes(letter)) {
+            // If modifier exists, it must be + or -
+            if (modifier && !['+', '-'].includes(modifier)) {
+              return 'N/A';
+            }
+            // Return normalized grade (letter + modifier or just letter)
+            return modifier ? letter + modifier : letter;
+          }
+          
+          // E is invalid (grades go F, D, C, B, A)
+          if (letter === 'E') {
+            return 'N/A';
+          }
+        }
+        
+        // Check for "I don't know", "don't remember", etc. - these should be N/A
+        if (lowerResponse.includes("don't know") || 
+            lowerResponse.includes("don't remember") ||
+            lowerResponse.includes("didn't get") ||
+            lowerResponse.includes("not sure") ||
+            lowerResponse.includes("no grade") ||
+            lowerResponse.includes("haven't received")) {
+          return 'N/A';
+        }
+        
+        // If no valid grade found, return N/A
+        return 'N/A';
         
       case 'textbook':
         if (lowerResponse.includes('yes') || lowerResponse.includes('yeah') || 

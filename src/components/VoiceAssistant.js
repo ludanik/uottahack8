@@ -60,7 +60,8 @@ function VoiceAssistant({ onComplete, onClose }) {
     });
     
     return () => {
-      // Cleanup: stop recognition and reset state
+      // Cleanup: stop all audio, recognition, and reset state when component unmounts
+      // This only runs when the component is actually unmounting/being removed
       if (autoFinishTimeoutRef.current) {
         clearTimeout(autoFinishTimeoutRef.current);
         autoFinishTimeoutRef.current = null;
@@ -74,8 +75,61 @@ function VoiceAssistant({ onComplete, onClose }) {
         isListeningRef.current = false;
         setIsListening(false);
       }
+      // Stop audio
+      elevenLabsService.stopAudio();
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (error) {
+          // Ignore
+        }
+      }
     };
   }, []);
+
+  // Complete cleanup: stop all audio, speech recognition, and clear timeouts
+  const cleanupAll = () => {
+    console.log('Cleaning up voice assistant - stopping all audio and recognition');
+    
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        // Ignore errors during cleanup
+      }
+      isListeningRef.current = false;
+      setIsListening(false);
+    }
+    
+    // Stop all audio playback
+    // Stop ElevenLabs audio
+    elevenLabsService.stopAudio();
+    
+    // Stop browser TTS
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (error) {
+        console.warn('Error stopping browser TTS:', error);
+      }
+    }
+    
+    // Clear all timeouts
+    if (autoFinishTimeoutRef.current) {
+      clearTimeout(autoFinishTimeoutRef.current);
+      autoFinishTimeoutRef.current = null;
+    }
+    
+    // Reset state
+    setIsListening(false);
+    setIsSpeaking(false);
+    setIsProcessing(false);
+    isListeningRef.current = false;
+    isSpeakingRef.current = false;
+    isProcessingRef.current = false;
+    isContinuousMode.current = false;
+  };
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -486,7 +540,10 @@ function VoiceAssistant({ onComplete, onClose }) {
       <div className="voice-assistant-modal">
         <div className="voice-assistant-header">
           <h2>Voice Feedback Assistant</h2>
-          <button className="close-btn" onClick={onClose} aria-label="Close">
+          <button className="close-btn" onClick={() => {
+            cleanupAll();
+            onClose();
+          }} aria-label="Close">
             ×
           </button>
         </div>
@@ -557,8 +614,7 @@ function VoiceAssistant({ onComplete, onClose }) {
             <button
               className="stop-btn"
               onClick={() => {
-                isContinuousMode.current = false;
-                stopListening();
+                cleanupAll();
                 onClose();
               }}
               aria-label="Stop conversation"

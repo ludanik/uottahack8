@@ -9,8 +9,9 @@ class ElevenLabsService {
     this.baseUrl = 'https://api.elevenlabs.io/v1';
     
     // Default voice ID - Using Mark voice for natural conversation
-    // Mark voice ID provided by user
-    this.defaultVoiceId = 'pVnrL6sighQX7hVz89cp'; // Mark - natural, conversational voice
+    // Mark voice ID provided by user: pVnrL6sighQX7hVz89cp
+    // CRITICAL: Always use this exact voice ID - do not search by name or override
+    this.defaultVoiceId = 'pVnrL6sighQX7hVz89cp';
     
     // Initialize voice cache
     this.voiceCache = null;
@@ -66,19 +67,17 @@ class ElevenLabsService {
     }
   }
   
-  // Initialize and try to find Mark voice
+  // Initialize voice - use the hardcoded Mark voice ID
   async initializeVoice() {
-    if (!this.apiKey) {
-      return;
-    }
+    // DO NOT search for voice by name - always use the hardcoded voice ID
+    // This ensures we always use the correct Mark voice: pVnrL6sighQX7hVz89cp
+    // Searching by name might find a different voice with the same name
+    console.log('Using Mark voice ID (hardcoded):', this.defaultVoiceId);
     
-    // Try to find "Mark" voice
-    const markVoiceId = await this.findVoiceByName('Mark');
-    if (markVoiceId) {
-      this.defaultVoiceId = markVoiceId;
-      console.log('Using Mark voice:', markVoiceId);
-    } else {
-      console.log('Mark voice not found, using default voice:', this.defaultVoiceId);
+    // Verify voice ID is correct
+    if (this.defaultVoiceId !== 'pVnrL6sighQX7hVz89cp') {
+      console.error('ERROR: Wrong voice ID detected! Correcting to pVnrL6sighQX7hVz89cp');
+      this.defaultVoiceId = 'pVnrL6sighQX7hVz89cp';
     }
   }
 
@@ -96,7 +95,20 @@ class ElevenLabsService {
     }
 
     try {
-      const voice = voiceId || this.defaultVoiceId;
+      // Always use the hardcoded Mark voice ID when no voiceId is provided
+      let voice = voiceId || this.defaultVoiceId;
+      
+      // Force correct voice ID if no explicit voiceId provided
+      if (!voiceId) {
+        voice = 'pVnrL6sighQX7hVz89cp'; // Always use Mark voice
+        // Also ensure defaultVoiceId is correct
+        if (this.defaultVoiceId !== 'pVnrL6sighQX7hVz89cp') {
+          console.error('ERROR: defaultVoiceId was wrong, correcting to pVnrL6sighQX7hVz89cp');
+          this.defaultVoiceId = 'pVnrL6sighQX7hVz89cp';
+        }
+      }
+      
+      console.log('✓ Using Mark voice ID:', voice);
       console.log('Calling ElevenLabs API with voice:', voice, 'Text length:', text.length);
       
       const response = await fetch(`${this.baseUrl}/text-to-speech/${voice}`, {
@@ -148,6 +160,23 @@ class ElevenLabsService {
       console.error('Error calling ElevenLabs API:', error);
       console.error('Error details:', error.message, error.stack);
       return null;
+    }
+  }
+
+  // Stop any currently playing audio
+  stopAudio() {
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.currentTime = 0;
+        if (this.currentAudio.src) {
+          URL.revokeObjectURL(this.currentAudio.src);
+        }
+        this.currentAudio = null;
+        console.log('Stopped ElevenLabs audio playback');
+      } catch (error) {
+        console.warn('Error stopping audio:', error);
+      }
     }
   }
 
