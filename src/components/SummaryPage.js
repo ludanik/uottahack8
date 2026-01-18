@@ -14,32 +14,54 @@ function SummaryPage({ reviewData, conversationHistory, onApprove, onCancel }) {
   const generateSummary = async () => {
     setIsGenerating(true);
     try {
-      if (openAIService.isConfigured() && conversationHistory.length > 0) {
-        // Use OpenAI to generate a formal summary
+      // Build bullet points from extracted lecture experience data
+      const bulletPoints = [];
+      
+      // Add lecture topics if available
+      if (reviewData.lectureTopics && reviewData.lectureTopics.trim()) {
+        bulletPoints.push(`📚 Topics covered: ${reviewData.lectureTopics}`);
+      }
+      
+      // Add easy/hard to understand if available
+      if (reviewData.easyHard && reviewData.easyHard.trim()) {
+        bulletPoints.push(`💡 Understanding: ${reviewData.easyHard}`);
+      }
+      
+      // Add professor feedback if available
+      if (reviewData.professorFeedback && reviewData.professorFeedback.trim()) {
+        bulletPoints.push(`👨‍🏫 Professor: ${reviewData.professorFeedback}`);
+      }
+      
+      // If we have bullet points, format them
+      if (bulletPoints.length > 0) {
+        const formattedSummary = bulletPoints.map(point => `• ${point}`).join('\n');
+        setSummary(formattedSummary);
+      } else if (openAIService.isConfigured() && conversationHistory.length > 0) {
+        // Fallback: Use OpenAI to generate bullet points from conversation
         const completion = await openAIService.client.chat.completions.create({
           model: 'gpt-4o-mini',
           messages: [
             {
               role: 'system',
-              content: `Create a concise, anonymous course review summary (2-3 sentences) based on the conversation. Make it professional, clear, and helpful for other students.`
+              content: `Create bullet points summarizing the lecture experience based on the conversation. Focus on: lecture topics covered, what was easy/hard to understand, and what the professor did well or poorly. Format as concise bullet points, each starting with "•".`
             },
             {
               role: 'user',
-              content: `Based on this conversation about ${reviewData.course || 'the course'}, create a brief summary review:\n\n${conversationHistory.filter(msg => msg.type === 'user').map(msg => msg.message).join(' ')}`
+              content: `Based on this conversation about the lecture, create bullet points summarizing the experience:\n\n${conversationHistory.filter(msg => msg.type === 'user').map(msg => msg.message).join('\n')}`
             }
           ],
           temperature: 0.7,
-          max_tokens: 200
+          max_tokens: 300
         });
         
         const generatedSummary = completion.choices[0]?.message?.content?.trim();
-        setSummary(generatedSummary || reviewData.comment || 'No summary available.');
+        setSummary(generatedSummary || 'No summary available.');
       } else {
-        setSummary(reviewData.comment || 'No summary available.');
+        setSummary('No summary available.');
       }
     } catch (error) {
       console.error('Error generating summary:', error);
-      setSummary(reviewData.comment || 'No summary available.');
+      setSummary('No summary available.');
     } finally {
       setIsGenerating(false);
     }
@@ -51,7 +73,8 @@ function SummaryPage({ reviewData, conversationHistory, onApprove, onCancel }) {
     setTimeout(() => {
       onApprove({
         ...reviewData,
-        comment: summary
+        comment: summary,
+        course: reviewData.courseCode || 'Unknown' // Map courseCode to course for compatibility
       });
     }, 500);
   };
@@ -74,21 +97,13 @@ function SummaryPage({ reviewData, conversationHistory, onApprove, onCancel }) {
             <div className="summary-preview">
               <div className="preview-card">
                 <div className="preview-header">
-                  <span className="preview-course">{reviewData.course || 'Course'}</span>
+                  <span className="preview-course">{reviewData.courseCode || reviewData.course || 'Course'}</span>
                   <div className="preview-ratings">
-                    <span className="rating-badge quality">Quality: {reviewData.quality?.toFixed(1) || 'N/A'}</span>
-                    <span className="rating-badge difficulty">Difficulty: {reviewData.difficulty?.toFixed(1) || 'N/A'}</span>
+                    <span className="rating-badge difficulty">Difficulty: {(typeof reviewData.difficulty === 'number' && !isNaN(reviewData.difficulty)) ? Math.round(reviewData.difficulty) : 'N/A'}</span>
                   </div>
                 </div>
-                <p className="preview-comment">{summary}</p>
-                <div className="preview-meta">
-                  {reviewData.attendance && (
-                    <span>Attendance: {reviewData.attendance === 'Yes' ? 'Mandatory' : 'Optional'}</span>
-                  )}
-                  {reviewData.grade && <span>Grade: {reviewData.grade}</span>}
-                  {reviewData.wouldTakeAgain !== null && (
-                    <span>Would Take Again: {reviewData.wouldTakeAgain ? 'Yes' : 'No'}</span>
-                  )}
+                <div className="preview-comment" style={{ whiteSpace: 'pre-line' }}>
+                  {summary || 'No summary available.'}
                 </div>
               </div>
             </div>

@@ -12,64 +12,39 @@ export class ConversationService {
       conversationHistory: []
     };
     
-    // Core questions to cover (SurveyMonkey style) - more natural and conversational flow
+    // Lecture experience feedback flow - focused on immediate post-lecture feedback
     this.questionFlow = {
       greeting: {
-        message: "Hey! Thanks for taking a moment to share your feedback about your course. How are you doing today?",
-        nextPhase: 'initialFeedback'
+        message: "Hey there! Thanks for taking the time to share your lecture experience. How are you doing?",
+        nextPhase: 'courseCode'
       },
-      initialFeedback: {
-        message: "Great! Let's start - what course are you reviewing today?",
-        extractField: 'course',
-        nextPhase: 'overallRating'
+      courseCode: {
+        message: "Great! What course code was this lecture for?",
+        extractField: 'courseCode',
+        nextPhase: 'lectureTopics'
       },
-      overallRating: {
-        message: "Perfect! On a scale of 1 to 5, how would you rate your overall experience with this course? Just say a number or tell me how it went.",
-        extractField: 'quality',
+      lectureTopics: {
+        message: "Perfect! What topics did the professor cover in today's lecture?",
+        extractField: 'lectureTopics',
         nextPhase: 'difficulty'
       },
       difficulty: {
-        message: "Got it! And how difficult would you say this course was? Again, 1 to 5 - or just tell me how challenging you found it.",
+        message: "Got it! On a scale of 1 to 5, how difficult was this lecture? Just give me a number between 1 and 5.",
         extractField: 'difficulty',
-        nextPhase: 'courseStatus'
+        nextPhase: 'easyHard'
       },
-      courseStatus: {
-        message: "Thanks! Are you currently taking this course, or have you already completed it?",
-        extractField: 'courseStatus',
-        nextPhase: 'detailedFeedback'
+      easyHard: {
+        message: "Thanks! What did you find easy to understand, and what was the hardest part to grasp?",
+        extractField: 'easyHard',
+        nextPhase: 'professorFeedback'
       },
-      detailedFeedback: {
-        message: "Awesome. Can you tell me more about what stood out to you? Maybe the teaching style, the material, or something specific about the lectures?",
-        extractField: 'comment',
-        nextPhase: 'attendance'
-      },
-      attendance: {
-        message: "That's really helpful! What about attendance - was it mandatory or optional?",
-        extractField: 'attendance',
-        nextPhase: 'textbook'
-      },
-      textbook: {
-        message: "Got it. Did you need to use a textbook for this course?",
-        extractField: 'textbook',
-        nextPhase: 'forCredit'
-      },
-      forCredit: {
-        message: "And did you take this course for credit?",
-        extractField: 'forCredit',
-        nextPhase: 'wouldTakeAgain'
-      },
-      wouldTakeAgain: {
-        message: "Cool. Last question - would you take this course again if given the chance?",
-        extractField: 'wouldTakeAgain',
-        nextPhase: 'grade'
-      },
-      grade: {
-        message: "Perfect! Would you be comfortable sharing the grade you got in this course?",
-        extractField: 'grade',
+      professorFeedback: {
+        message: "That's really helpful! What did the professor do well in this lecture, and what could they have done better?",
+        extractField: 'professorFeedback',
         nextPhase: 'closing'
       },
       closing: {
-        message: "Awesome! That's everything I needed. Your feedback has been saved and will help other students make informed decisions. Thanks so much for sharing!",
+        message: "Perfect! Thanks so much for sharing your feedback. Your input helps make lectures better for everyone. Have a great day!",
         nextPhase: 'complete'
       }
     };
@@ -164,21 +139,13 @@ export class ConversationService {
       };
     }
 
-    // If conversation is already in closing or complete phase, just acknowledge and end
+    // If conversation is already in closing or complete phase, conversation is done - no more responses
     if (currentPhase === 'closing' || currentPhase === 'complete') {
-      // Conversation is done - just acknowledge any response and mark as complete
-      const acknowledgment = "Thanks again! Have a great day!";
-      this.conversationState.conversationHistory.push({
-        type: 'assistant',
-        message: acknowledgment,
-        phase: 'complete'
-      });
-      
-      // Ensure phase is set to complete
+      // Conversation is already complete - don't send any more messages
       this.conversationState.currentPhase = 'complete';
       
       return {
-        assistantMessage: acknowledgment,
+        assistantMessage: null,
         phase: 'complete',
         collectedData: { ...this.conversationState.collectedData },
         isComplete: true
@@ -246,13 +213,7 @@ export class ConversationService {
         // Skip extracting data for this field, but move to next phase
         let nextPhase = phaseConfig?.nextPhase || 'complete';
         
-        // Conditionally skip grade if course is not completed
-        if (nextPhase === 'grade') {
-          const courseStatus = this.conversationState.collectedData.courseStatus;
-          if (courseStatus === 'currently_taking') {
-            nextPhase = 'closing';
-          }
-        }
+        // Skip grade question check (removed courseStatus question)
         
         this.conversationState.currentPhase = nextPhase;
         
@@ -373,14 +334,28 @@ export class ConversationService {
     // Move to next phase
     let nextPhase = phaseConfig?.nextPhase || 'complete';
     
-    // Conditionally skip grade if course is not completed
-    if (nextPhase === 'grade') {
-      const courseStatus = this.conversationState.collectedData.courseStatus;
-      // Only ask for grade if course is completed (skip if currently taking)
-      if (courseStatus === 'currently_taking') {
-        nextPhase = 'closing'; // Skip grade question if still taking the course
-      }
-      // If courseStatus is 'completed' or not set (default to completed), ask for grade
+    // Note: courseStatus question removed - grade question will always be asked
+    
+    // If next phase is 'closing', get closing message and mark as complete immediately (no waiting for response)
+    if (nextPhase === 'closing') {
+      const closingConfig = this.questionFlow.closing;
+      const closingMessage = closingConfig?.message || "Thank you for your feedback!";
+      
+      // Set phase to complete immediately - conversation ends after this message
+      this.conversationState.currentPhase = 'complete';
+      
+      this.conversationState.conversationHistory.push({
+        type: 'assistant',
+        message: closingMessage,
+        phase: 'complete'
+      });
+      
+      return {
+        assistantMessage: closingMessage,
+        phase: 'complete',
+        collectedData: { ...this.conversationState.collectedData },
+        isComplete: true
+      };
     }
     
     // Update phase BEFORE generating response so context is correct
@@ -398,12 +373,16 @@ export class ConversationService {
     }
     
     // Fallback to predefined message if OpenAI is not available or fails
-    if (!assistantMessage && nextPhase !== 'complete') {
+    if (!assistantMessage && nextPhase !== 'complete' && nextPhase !== 'closing') {
       // Get message for the NEW phase (already updated above)
       assistantMessage = this.getCurrentMessage();
-    } else if (!assistantMessage && nextPhase === 'complete') {
+    } else if (!assistantMessage && (nextPhase === 'complete' || nextPhase === 'closing')) {
+      // If moving to closing, get closing message and mark as complete immediately
       const closingConfig = this.questionFlow.closing;
       assistantMessage = closingConfig?.message || "Thank you for your feedback!";
+      // Set phase to complete immediately - conversation ends after this message
+      this.conversationState.currentPhase = 'complete';
+      nextPhase = 'complete';
     }
     
     this.conversationState.conversationHistory.push({
@@ -412,11 +391,14 @@ export class ConversationService {
       phase: nextPhase
     });
 
+    // If we just delivered the closing message, mark as complete immediately
+    const isComplete = nextPhase === 'complete' || (nextPhase === 'closing' && assistantMessage);
+
     return {
       assistantMessage,
-      phase: nextPhase,
+      phase: isComplete ? 'complete' : nextPhase,
       collectedData: { ...this.conversationState.collectedData },
-      isComplete: nextPhase === 'complete'
+      isComplete: isComplete
     };
   }
 
@@ -440,51 +422,68 @@ export class ConversationService {
         return null;
         
       case 'difficulty':
-        const difficultyMatch = response.match(/([1-5])\s*(?:out of 5|star|point)?/i);
-        if (difficultyMatch) return parseFloat(difficultyMatch[1]);
-        if (lowerResponse.includes('very easy') || lowerResponse.includes('super easy')) return 1;
-        if (lowerResponse.includes('easy') || lowerResponse.includes('not hard')) return 2;
-        if (lowerResponse.includes('moderate') || lowerResponse.includes('medium')) return 3;
-        if (lowerResponse.includes('difficult') || lowerResponse.includes('hard') || lowerResponse.includes('challenging')) return 4;
-        if (lowerResponse.includes('very hard') || lowerResponse.includes('extremely difficult') || lowerResponse.includes('brutal')) return 5;
+        // Only accept numeric values 1-5 for lecture difficulty
+        const difficultyPatterns = [
+          /\b([1-5])\s*(?:out of 5|star|stars|point|points|rating|rate)/i,
+          /(?:rating|rate|give|give it|i'd give|i give|difficulty|difficult).*?([1-5])/i,
+          /\b([1-5])\b/  // Standalone number 1-5
+        ];
+        
+        for (const pattern of difficultyPatterns) {
+          const match = response.match(pattern);
+          if (match) {
+            const num = parseFloat(match[1] || match[0]);
+            if (num >= 1 && num <= 5 && !isNaN(num)) {
+              return num;
+            }
+          }
+        }
+        // Only accept numeric 1-5 - no sentiment-based fallback for lecture difficulty
         return null;
         
-      case 'course':
+      case 'courseCode':
         // Extract course code (e.g., EECS3101, CS 3101, etc.)
-        // Try to match standard course code patterns first
-        const courseCodeMatch = response.match(/([A-Z]{2,6}[\s-]?\d{4}[A-Z]?)/i);
-        if (courseCodeMatch) {
-          return courseCodeMatch[1].replace(/[\s-]+/g, '').toUpperCase();
+        const courseCodeMatch1 = response.match(/([A-Z]{2,6}[\s-]?\d{4}[A-Z]?)/i);
+        if (courseCodeMatch1) {
+          return courseCodeMatch1[1].replace(/[\s-]+/g, '').toUpperCase();
         }
         
-        // Try to extract course name or code from common patterns
-        // Remove common filler words
-        let cleaned = response.trim()
-          .replace(/\b(it'?s|it was|the|a|an|this|that|course|class)\b/gi, '')
+        // Try to extract course code from common patterns
+        let cleaned1 = response.trim()
+          .replace(/\b(it'?s|it was|the|a|an|this|that|course|class|lecture)\b/gi, '')
           .replace(/\s+/g, ' ')
           .trim();
         
         // If it looks like a course code/number pattern (letters followed by numbers)
-        const codePattern = /([A-Z]{2,}\s*\d+[A-Z]?)/i;
-        const foundCode = cleaned.match(codePattern);
-        if (foundCode) {
-          return foundCode[1].replace(/\s+/g, '').toUpperCase();
+        const codePattern1 = /([A-Z]{2,}\s*\d+[A-Z]?)/i;
+        const foundCode1 = cleaned1.match(codePattern1);
+        if (foundCode1) {
+          return foundCode1[1].replace(/\s+/g, '').toUpperCase();
         }
         
         // If response is too long, try to extract just the course identifier
-        if (cleaned.length > 20) {
-          // Try to find a course code in the middle/end
-          const longCodeMatch = cleaned.match(/([A-Z]{2,}\s*\d{3,}[A-Z]?)/i);
-          if (longCodeMatch) {
-            return longCodeMatch[1].replace(/\s+/g, '').toUpperCase();
+        if (cleaned1.length > 20) {
+          const longCodeMatch1 = cleaned1.match(/([A-Z]{2,}\s*\d{3,}[A-Z]?)/i);
+          if (longCodeMatch1) {
+            return longCodeMatch1[1].replace(/\s+/g, '').toUpperCase();
           }
-          // Otherwise take first few words
-          const words = cleaned.split(/\s+/);
+          const words = cleaned1.split(/\s+/);
           return words.slice(0, 3).join(' ').trim();
         }
         
-        // Return cleaned response (first 20 chars max to avoid too long names)
-        return cleaned.substring(0, 30).trim() || 'Unknown';
+        return cleaned1.substring(0, 30).trim() || 'Unknown';
+        
+      case 'lectureTopics':
+        // Extract lecture topics - just return the full response
+        return response.trim();
+        
+      case 'easyHard':
+        // Extract what was easy/hardest to understand - just return the full response
+        return response.trim();
+        
+      case 'professorFeedback':
+        // Extract professor feedback - just return the full response
+        return response.trim();
         
       case 'comment':
         return response.trim();
@@ -551,34 +550,33 @@ export class ConversationService {
         return null;
         
       case 'grade':
-        // Valid grades: F, D-, D, D+, C-, C, C+, B-, B, B+, A-, A, A+
-        // Extract grade pattern (letter with optional + or -)
-        const gradeMatch = response.match(/\b([A-F][+-]?)\b/i);
+        // Valid grades: A, B, C, D, F only (all flat - no + or - modifiers)
+        // Extract grade pattern - match letter grades and strip any modifiers
+        // Match patterns like: "A+", "B-", "got an A", "I got a B-", "A plus", "B minus"
+        // F can never have modifiers (F+ or F- is invalid), all other grades stored flat
+        const gradeMatch = response.match(/\b([A-F])(\s*[+-]|\s+(?:plus|minus))?\b/i);
         if (gradeMatch) {
-          let grade = gradeMatch[1].toUpperCase();
-          const letter = grade[0];
-          const modifier = grade.length > 1 ? grade[1] : '';
+          let letter = gradeMatch[1].toUpperCase();
+          let modifier = gradeMatch[2];
           
-          // Validate: F can only be F (no modifiers)
+          // F can never have modifiers - only flat F
           if (letter === 'F') {
-            if (modifier) return 'N/A'; // F+ or F- is invalid
-            return 'F';
-          }
-          
-          // Validate: D-, D, D+, C-, C, C+, B-, B, B+, A-, A, A+
-          // Only A, B, C, D can have - or + modifiers
-          if (['A', 'B', 'C', 'D'].includes(letter)) {
-            // If modifier exists, it must be + or -
-            if (modifier && !['+', '-'].includes(modifier)) {
+            if (modifier) {
+              // F+ or F- is invalid - return N/A
               return 'N/A';
             }
-            // Return normalized grade (letter + modifier or just letter)
-            return modifier ? letter + modifier : letter;
+            return 'F';
           }
           
           // E is invalid (grades go F, D, C, B, A)
           if (letter === 'E') {
             return 'N/A';
+          }
+          
+          // A, B, C, D - strip modifiers and return flat letter only
+          if (['A', 'B', 'C', 'D'].includes(letter)) {
+            // Return just the letter (no modifiers), even if user said A+ or B-
+            return letter;
           }
         }
         
@@ -625,24 +623,19 @@ export class ConversationService {
   getCollectedReview() {
     const data = this.conversationState.collectedData;
     
-    // Build tags based on collected data
+    // Build tags based on collected data for lecture experience
     const tags = [];
-    if (data.quality >= 4.5) tags.push('AMAZING LECTURES');
-    if (data.difficulty >= 4) tags.push('GET READY TO READ', 'TOUGH GRADER');
-    if (data.attendance === 'Yes') tags.push("SKIP CLASS? YOU WON'T PASS.");
-    if (data.difficulty <= 2) tags.push('EASY A');
-    if (data.wouldTakeAgain === true) tags.push('WOULD TAKE AGAIN');
+    if (data.difficulty >= 4) tags.push('CHALLENGING LECTURE');
+    if (data.difficulty <= 2) tags.push('EASY TO FOLLOW');
+    if (data.professorFeedback && data.professorFeedback.toLowerCase().includes('well')) tags.push('GREAT PROFESSOR');
+    if (data.professorFeedback && (data.professorFeedback.toLowerCase().includes('better') || data.professorFeedback.toLowerCase().includes('improve'))) tags.push('ROOM FOR IMPROVEMENT');
     
     return {
-      course: data.course || 'Unknown',
-      quality: data.quality || 3.0,
-      difficulty: data.difficulty || 3.0,
-      forCredit: data.forCredit ?? null,
-      attendance: data.attendance || null,
-      wouldTakeAgain: data.wouldTakeAgain ?? null,
-      grade: data.grade || null,
-      textbook: data.textbook ?? null,
-      comment: data.comment || '',
+      courseCode: data.courseCode || 'Unknown',
+      lectureTopics: data.lectureTopics || '',
+      difficulty: data.difficulty || null,
+      easyHard: data.easyHard || '',
+      professorFeedback: data.professorFeedback || '',
       tags: tags.slice(0, 5) // Limit to 5 tags
     };
   }

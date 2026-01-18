@@ -58,18 +58,29 @@ function LandingPage({ onStartRecording }) {
           ref={logoRef}
           className="logo-icon" 
           onClick={handleLogoClick}
-          initial={false}
+          initial={{ opacity: 0 }}
           animate={{
+            opacity: 1,
             x: centerOffset,
+            y: isCentered ? 100 : 0,
             scale: isCentered ? 1.3 : 1
           }}
           transition={{
+            opacity: {
+              duration: 1.2,
+              ease: "easeOut"
+            },
             x: {
               type: "spring",
               stiffness: 30,
               damping: 25,
               restDelta: 0.01,
               restSpeed: 0.01
+            },
+            y: {
+              type: "spring",
+              stiffness: 30,
+              damping: 25
             },
             scale: {
               type: "spring",
@@ -89,12 +100,18 @@ function LandingPage({ onStartRecording }) {
               src="/righthand.png" 
               alt="RightHand Icon" 
               className="logo-image"
-              style={{ marginBottom: '-300px' }}
+              style={{ marginBottom: '-300px', marginTop: '180px'  }}
           />
-          <img 
+          <motion.img 
                 src="/righthand text.png" 
                 alt="RightHand Text" 
                 className="logo-text-image"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: isCentered ? 0 : 1 }}
+                transition={{ 
+                  opacity: { duration: 1.2, ease: "easeOut" },
+                  default: { duration: 0.5 }
+                }}
           />
         </div>
         

@@ -150,9 +150,20 @@
 
 .preview-comment {
   margin: 16px 0;
-  line-height: 1.6;
+  line-height: 1.8;
   color: #333;
   font-size: 15px;
+  white-space: pre-line;
+}
+
+.preview-comment ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.preview-comment li {
+  margin: 8px 0;
 }
 
 .preview-meta {

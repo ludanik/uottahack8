@@ -347,7 +347,7 @@ function VoiceAssistant({ onComplete, onClose }) {
             return updated;
           });
           
-          // Auto-finish after 2 seconds of silence (when speech ends)
+          // Auto-finish after 1 second of silence (when speech ends)
           // Use refs to check state reliably in timeout
           autoFinishTimeoutRef.current = setTimeout(() => {
             const transcript = pendingTranscriptRef.current.trim();
@@ -356,7 +356,7 @@ function VoiceAssistant({ onComplete, onClose }) {
               // Use the ref to call the function (avoids closure issues)
               handleFinishResponseRef.current();
             }
-          }, 2000); // 2 seconds of silence before auto-finishing
+          }, 1000); // 1 second of silence before auto-finishing
         } else if (interimTranscript) {
           // User is still speaking - clear auto-finish timeout
           if (autoFinishTimeoutRef.current) {
