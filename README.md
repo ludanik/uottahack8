@@ -6,6 +6,8 @@ An AI voice assistant that talks to students after lectures and turns their feed
 
 **Solves:** Low survey completion rates by making feedback feel like talking to a friend instead of filling out a form.
 
+View devpost: https://devpost.com/software/righthand
+
 ## Features
 
 - **Voice-to-Voice Interaction**: Natural conversation using OpenAI for intelligent responses and ElevenLabs API for realistic voice synthesis
