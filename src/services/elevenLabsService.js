@@ -18,6 +18,10 @@ class ElevenLabsService {
     
     // Store currently playing audio to prevent overlapping/echo
     this.currentAudio = null;
+    // Flag to track if audio should be stopped
+    this.isStopped = false;
+    // Store current play promise to cancel it
+    this.currentPlayPromise = null;
   }
   
   // Find voice by name (case-insensitive)
@@ -223,6 +227,17 @@ class ElevenLabsService {
       };
       
       audio.onended = () => {
+        // Check if audio was stopped before resolving
+        if (this.isStopped) {
+          console.log('Audio playback was stopped, not resolving');
+          URL.revokeObjectURL(audioUrl);
+          if (this.currentAudio === audio) {
+            this.currentAudio = null;
+          }
+          reject(new Error('Audio playback was stopped'));
+          return;
+        }
+        
         console.log('Audio playback completed');
         URL.revokeObjectURL(audioUrl);
         if (this.currentAudio === audio) {
@@ -276,17 +291,37 @@ class ElevenLabsService {
   async speak(text, voiceId = null) {
     console.log('ElevenLabs speak called with text:', text?.substring(0, 50) + '...');
     
+    // Reset stopped flag when starting new speech
+    this.isStopped = false;
+    
     if (!this.apiKey) {
       console.warn('ElevenLabs API key not configured, falling back to browser TTS');
       return null;
     }
     
     const audioBlob = await this.textToSpeech(text, voiceId);
+    
+    // Check if stopped during textToSpeech
+    if (this.isStopped) {
+      console.log('Audio was stopped during textToSpeech');
+      return null;
+    }
+    
     if (audioBlob) {
       try {
         await this.playAudio(audioBlob);
+        // Check if stopped after playAudio
+        if (this.isStopped) {
+          console.log('Audio was stopped during playback');
+          return null;
+        }
         return true;
       } catch (error) {
+        // If error is because audio was stopped, return null silently
+        if (error.message === 'Audio playback was stopped') {
+          console.log('Audio playback was stopped by user');
+          return null;
+        }
         console.error('Error playing audio from ElevenLabs:', error);
         return null;
       }

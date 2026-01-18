@@ -1,0 +1,245 @@
+.course-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-left {
+  flex: 1;
+}
+
+.course-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #000;
+  margin: 0 0 8px;
+}
+
+.course-subtitle {
+  font-size: 16px;
+  color: #666;
+  margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.add-review-btn {
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.voice-review-btn {
+  background: #000;
+  color: white;
+}
+
+.voice-review-btn:hover {
+  background: #333;
+  transform: translateY(-1px);
+}
+
+.text-review-btn {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.text-review-btn:hover {
+  background: #e0e0e0;
+}
+
+.dashboard-content {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.radial-progress-section {
+  position: sticky;
+  top: 24px;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 16px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.radial-progress-container {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.radial-progress {
+  width: 200px;
+  height: 200px;
+  transform: rotate(-90deg);
+}
+
+.radial-progress-track {
+  stroke: #f0f0f0;
+}
+
+.radial-progress-bar {
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.radial-progress-text {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.progress-value {
+  font-size: 48px;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+}
+
+.progress-max {
+  font-size: 24px;
+  font-weight: 400;
+  color: #666;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.progress-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  margin-top: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.difficulty-distribution {
+  width: 100%;
+}
+
+.difficulty-distribution h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 16px;
+}
+
+.distribution-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.distribution-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.distribution-level {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  width: 20px;
+  text-align: center;
+}
+
+.distribution-bar-wrapper {
+  flex: 1;
+  height: 20px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.distribution-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #00a87d 0%, #ffcc00 50%, #ff6b6b 100%);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+  min-width: 2px;
+}
+
+.distribution-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  width: 30px;
+  text-align: right;
+}
+
+.reviews-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #000;
+  margin: 0 0 16px;
+}
+
+.new-review-section {
+  margin-bottom: 8px;
+}
+
+.other-reviews-section {
+  margin-top: 16px;
+}
+
+.no-reviews {
+  padding: 48px 24px;
+  text-align: center;
+  color: #666;
+  font-size: 16px;
+}
+
+@media (max-width: 968px) {
+  .dashboard-content {
+    grid-template-columns: 1fr;
+  }
+
+  .radial-progress-section {
+    position: static;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+  }
+
+  .header-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .add-review-btn {
+    width: 100%;
+  }
+}

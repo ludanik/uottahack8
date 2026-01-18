@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './LandingPage.css';
 
-function LandingPage({ onStartRecording }) {
+function LandingPage({ onStartRecording, onNavigateToDashboard, isVoiceActive = false }) {
   const [clickCount, setClickCount] = useState(0);
   const [centerOffset, setCenterOffset] = useState(0);
   const logoRef = useRef(null);
@@ -38,6 +38,24 @@ function LandingPage({ onStartRecording }) {
     }
   };
 
+  // If voice is active, automatically center the logo (simulate second click state)
+  useEffect(() => {
+    if (isVoiceActive && clickCount === 0) {
+      // Calculate and set offset if not already done
+      if (logoRef.current && !hasCalculatedOffset.current) {
+        const rect = logoRef.current.getBoundingClientRect();
+        const viewportCenter = window.innerWidth / 2;
+        const logoCenter = rect.left + rect.width / 2;
+        const currentOffset = viewportCenter - logoCenter;
+        lockedOffsetRef.current = currentOffset;
+        setCenterOffset(currentOffset);
+        hasCalculatedOffset.current = true;
+      }
+      // Set clickCount to 1 to center the logo
+      setClickCount(1);
+    }
+  }, [isVoiceActive]);
+
   // Reset when going back to initial state
   useEffect(() => {
     if (clickCount === 0) {
@@ -53,6 +71,28 @@ function LandingPage({ onStartRecording }) {
 
   return (
     <div className="landing-page">
+      {onNavigateToDashboard && (
+        <motion.button
+          className="dashboard-button"
+          onClick={onNavigateToDashboard}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ 
+            opacity: isCentered ? 0 : 1,
+            y: isCentered ? -20 : 0
+          }}
+          transition={{ 
+            delay: isCentered ? 0 : 0.5,
+            duration: 0.5,
+            ease: "easeOut"
+          }}
+          whileHover={{ scale: isCentered ? 1 : 1.05 }}
+          whileTap={{ scale: isCentered ? 1 : 0.95 }}
+          style={{ pointerEvents: isCentered ? 'none' : 'auto' }}
+        >
+          <span className="dashboard-icon">📊</span>
+          <span className="dashboard-text">View Reviews</span>
+        </motion.button>
+      )}
       <div className={`logo-container ${isCentered ? 'centered' : ''}`}>
         <motion.div 
           ref={logoRef}

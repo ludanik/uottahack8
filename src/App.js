@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import LandingPage from './components/LandingPage';
-import ProfessorProfile from './components/ProfessorProfile';
-import ReviewFeed from './components/ReviewFeed';
+import CourseDashboard from './components/CourseDashboard';
 import VoiceAssistant from './components/VoiceAssistant';
 import TextReview from './components/TextReview';
 import SummaryPage from './components/SummaryPage';
@@ -32,6 +31,7 @@ const initialReviews = [
   {
     id: 1,
     course: "3101",
+    courseCode: "3101",
     date: "Mar 27th, 2025",
     quality: 5.0,
     difficulty: 5.0,
@@ -40,7 +40,7 @@ const initialReviews = [
     wouldTakeAgain: true,
     grade: "B",
     textbook: true,
-    comment: "This is a self-teach course regardless of prof. A great resource for self-teach is the \"MIT OCW 6-006-introduction-to-algorithms-fall-2011\" (RMP doesn't let me link it). The MIT lectures and notes cover all aspects of the course and are high quality. Reading CLRS to learn is useless, use it only to do problems, review from MIT notes when stuck.",
+    comment: "• 📚 Topics covered: Introduction to algorithms, data structures, and complexity analysis\n• 💡 Understanding: The material was very challenging, especially dynamic programming concepts. Self-teaching was necessary.\n• 👨‍🏫 Professor: The course is self-teach regardless of prof. MIT OCW lectures are a great resource for learning the material.",
     helpfulCount: 0,
     notHelpfulCount: 0,
     tags: []
@@ -48,6 +48,7 @@ const initialReviews = [
   {
     id: 2,
     course: "3101",
+    courseCode: "3101",
     date: "Mar 20th, 2025",
     quality: 5.0,
     difficulty: 5.0,
@@ -56,7 +57,7 @@ const initialReviews = [
     wouldTakeAgain: true,
     grade: "D+",
     textbook: true,
-    comment: "Course destroyed my will to live. Great prof though, material is just hard.",
+    comment: "• 📚 Topics covered: Advanced algorithm design and analysis\n• 💡 Understanding: Extremely difficult material, struggled with most concepts throughout the course\n• 👨‍🏫 Professor: Great prof though, the material itself is just very hard",
     helpfulCount: 0,
     notHelpfulCount: 0,
     tags: []
@@ -64,6 +65,7 @@ const initialReviews = [
   {
     id: 3,
     course: "EECS4101",
+    courseCode: "EECS4101",
     date: "Mar 14th, 2025",
     quality: 5.0,
     difficulty: 4.0,
@@ -72,7 +74,7 @@ const initialReviews = [
     wouldTakeAgain: true,
     grade: "A",
     textbook: true,
-    comment: "He is very mindful in the way he speaks; tries to phrase things concisely and in a clear way. Seems to know the content well and teaches off the blackboard. Writes down notes so its easy to follow along. Tests and assignments are challenging, but with going to classes + reading the textbook should do just fine. probably the best prof i had so far",
+    comment: "• 📚 Topics covered: Advanced computer science concepts and theory\n• 💡 Understanding: Material was challenging but manageable with regular attendance and textbook reading\n• 👨‍🏫 Professor: Very mindful in the way he speaks, phrases things concisely and clearly. Knows the content well, teaches off the blackboard and writes notes that are easy to follow. Probably the best prof I had so far",
     helpfulCount: 0,
     notHelpfulCount: 0,
     tags: ["AMAZING LECTURES", "LECTURE HEAVY", "TEST HEAVY"]
@@ -86,6 +88,8 @@ function App() {
   const [showTextReview, setShowTextReview] = useState(false);
   const [pendingReview, setPendingReview] = useState(null);
   const [pendingConversationHistory, setPendingConversationHistory] = useState([]);
+  const [newlyPostedReview, setNewlyPostedReview] = useState(null);
+  const [currentCourseCode, setCurrentCourseCode] = useState(null);
 
   const handleVoiceReview = () => {
     setShowVoiceAssistant(true);
@@ -147,11 +151,33 @@ function App() {
     ]);
   };
 
-  // Show landing page initially
-  if (appState === 'landing') {
+  const handleNavigateToDashboard = () => {
+    setAppState('community');
+    setNewlyPostedReview(null); // Reset newly posted review when navigating
+    setCurrentCourseCode(null); // Reset course filter
+  };
+
+  const handleLogoClick = () => {
+    setAppState('landing');
+    setNewlyPostedReview(null);
+    setCurrentCourseCode(null);
+  };
+
+  // Show landing page initially or when voice assistant is active (to keep logo visible)
+  if (appState === 'landing' || appState === 'voice') {
     return (
       <div className="app">
-        <LandingPage onStartRecording={handleStartRecording} />
+        <LandingPage 
+          onStartRecording={handleStartRecording} 
+          onNavigateToDashboard={handleNavigateToDashboard}
+          isVoiceActive={appState === 'voice'} // Pass prop to indicate voice is active
+        />
+        {appState === 'voice' && showVoiceAssistant && (
+          <VoiceAssistant
+            onComplete={handleVoiceAssistantComplete}
+            onClose={handleVoiceAssistantClose}
+          />
+        )}
       </div>
     );
   }
@@ -162,36 +188,35 @@ function App() {
       <div className="app">
         <header className="header">
           <div className="header-content">
-            <span className="logo">RMP</span>
+            <img 
+              src="/righthand.png" 
+              alt="RightHand Logo" 
+              className="header-logo"
+              onClick={handleLogoClick}
+              style={{ cursor: 'pointer' }}
+            />
             <nav className="nav">
-              <span className="nav-item active">Professors</span>
+              <span className="nav-item active">Lecture Reviews</span>
             </nav>
           </div>
         </header>
         
         <main className="main-content">
-          <ProfessorProfile professor={professorData} />
-          <ReviewFeed 
-            reviews={reviews} 
+          <CourseDashboard
+            reviews={reviews}
+            courseCode={currentCourseCode}
             onVoiceReview={handleVoiceReview}
             onTextReview={handleTextReview}
-            totalRatings={professorData.totalRatings}
+            newlyPostedReview={newlyPostedReview}
           />
         </main>
       </div>
     );
   }
 
-  // Show voice assistant or summary overlays
+  // Show summary overlays
   return (
     <div className="app">
-      {appState === 'voice' && showVoiceAssistant && (
-        <VoiceAssistant
-          onComplete={handleVoiceAssistantComplete}
-          onClose={handleVoiceAssistantClose}
-        />
-      )}
-
       {appState === 'summary' && pendingReview && (
         <SummaryPage
           reviewData={pendingReview}

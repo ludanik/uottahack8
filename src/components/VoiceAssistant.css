@@ -12,6 +12,149 @@
   animation: fadeIn 0.2s ease-in;
 }
 
+.voice-assistant-hidden {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1000;
+  visibility: visible;
+}
+
+.voice-assistant-status-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  pointer-events: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+  visibility: visible;
+  opacity: 1;
+}
+
+.status-bar-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 120px;
+}
+
+.listening-indicator-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.pulse-ring-mini {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ff4444;
+  position: relative;
+  animation: pulse-ring-mini 1.5s infinite;
+}
+
+.pulse-ring-mini::before {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 68, 68, 0.3);
+  animation: pulse-ring-mini 1.5s infinite;
+  animation-delay: 0s;
+}
+
+.pulse-ring-mini::after {
+  content: '🎤';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  z-index: 1;
+}
+
+@keyframes pulse-ring-mini {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.listening-text-mini {
+  font-size: 13px;
+  font-weight: 500;
+  color: #ff4444;
+}
+
+.status-mini {
+  font-size: 13px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.finish-btn-mini {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.finish-btn-mini:hover:not(:disabled) {
+  background: #218838;
+  transform: translateY(-1px);
+}
+
+.finish-btn-mini:disabled {
+  background: #555;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.stop-btn-mini {
+  background: #6c757d;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.stop-btn-mini:hover {
+  background: #5a6268;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

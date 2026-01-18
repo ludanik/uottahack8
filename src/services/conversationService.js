@@ -15,7 +15,7 @@ export class ConversationService {
     // Lecture experience feedback flow - focused on immediate post-lecture feedback
     this.questionFlow = {
       greeting: {
-        message: "Hey there! Thanks for taking the time to share your lecture experience. How are you doing?",
+        message: "Hey there! So you just finished a lecture, how did it go?",
         nextPhase: 'courseCode'
       },
       courseCode: {
@@ -24,12 +24,12 @@ export class ConversationService {
         nextPhase: 'lectureTopics'
       },
       lectureTopics: {
-        message: "Perfect! What topics did the professor cover in today's lecture?",
+        message: "Sounds about right, what topics were covered?",
         extractField: 'lectureTopics',
         nextPhase: 'difficulty'
       },
       difficulty: {
-        message: "Got it! On a scale of 1 to 5, how difficult was this lecture? Just give me a number between 1 and 5.",
+        message: "That sounds like alot, On a scale of 1 to 5, how difficult was this lecture? Just give me a number between 1 and 5.",
         extractField: 'difficulty',
         nextPhase: 'easyHard'
       },
@@ -44,7 +44,7 @@ export class ConversationService {
         nextPhase: 'closing'
       },
       closing: {
-        message: "Perfect! Thanks so much for sharing your feedback. Your input helps make lectures better for everyone. Have a great day!",
+        message: "Seems like you know your stuff! Thanks for the insight, your input is gonna help make lectures better for everyone. See you around!",
         nextPhase: 'complete'
       }
     };
@@ -283,8 +283,43 @@ export class ConversationService {
     // Extract data based on current phase
     if (phaseConfig && phaseConfig.extractField) {
       const extractedValue = this.extractFieldValue(userResponse, phaseConfig.extractField);
+      console.log(`Extraction for ${phaseConfig.extractField}:`, extractedValue, 'from response:', userResponse);
+      
       if (extractedValue !== null) {
         this.conversationState.collectedData[phaseConfig.extractField] = extractedValue;
+        console.log(`Successfully stored ${phaseConfig.extractField}:`, extractedValue);
+      } else if (phaseConfig.extractField === 'difficulty') {
+        // Light clarification: only ask once if we don't have difficulty yet
+        // Track if we've already asked for clarification to avoid loops
+        const hasAskedForClarification = this.conversationState.collectedData._difficultyClarificationAsked || false;
+        
+        if (!this.conversationState.collectedData.difficulty && !hasAskedForClarification) {
+          console.log('Difficulty extraction failed, asking for clarification (first time only)');
+          
+          // Mark that we've asked for clarification
+          this.conversationState.collectedData._difficultyClarificationAsked = true;
+          
+          // Light, friendly clarification - just once
+          const clarificationMessage = "Could you give me a number between 1 and 5?";
+          
+          this.conversationState.conversationHistory.push({
+            type: 'assistant',
+            message: clarificationMessage,
+            phase: currentPhase // Stay on same phase
+          });
+          
+          return {
+            assistantMessage: clarificationMessage,
+            phase: currentPhase, // Don't move forward - stay on same question
+            collectedData: { ...this.conversationState.collectedData },
+            isComplete: false
+          };
+        } else {
+          // If we've already asked or still can't extract, just move forward with null/default
+          // Don't get stuck in a loop - accept that we couldn't extract and continue
+          console.log('Difficulty extraction failed but moving forward to avoid loop');
+          this.conversationState.collectedData.difficulty = null; // Explicitly set to null
+        }
       }
     }
 
@@ -361,6 +396,9 @@ export class ConversationService {
     // Update phase BEFORE generating response so context is correct
     this.conversationState.currentPhase = nextPhase;
     
+    // Debug: Log phase transition
+    console.log(`Phase transition: ${currentPhase} -> ${nextPhase}, collectedData:`, this.conversationState.collectedData);
+    
     // Try to get OpenAI response for natural conversation
     let assistantMessage = null;
     if (openAIService.isConfigured() && nextPhase !== 'complete') {
@@ -423,10 +461,28 @@ export class ConversationService {
         
       case 'difficulty':
         // Only accept numeric values 1-5 for lecture difficulty
+        // First try to match word numbers (one, two, three, four, five)
+        const wordToNumber = {
+          'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+          '1': 1, '2': 2, '3': 3, '4': 4, '5': 5
+        };
+        
+        // Check for word numbers (more flexible matching)
+        for (const [word, num] of Object.entries(wordToNumber)) {
+          // Match word as whole word or standalone digit
+          const wordRegex = new RegExp(`(?:^|\\s|\\b)${word}(?:\\s|$|\\b)`, 'i');
+          if (wordRegex.test(response)) {
+            console.log(`Matched word number: ${word} -> ${num}`);
+            return num;
+          }
+        }
+        
+        // Then try regex patterns for numeric values (more comprehensive)
         const difficultyPatterns = [
           /\b([1-5])\s*(?:out of 5|star|stars|point|points|rating|rate)/i,
-          /(?:rating|rate|give|give it|i'd give|i give|difficulty|difficult).*?([1-5])/i,
-          /\b([1-5])\b/  // Standalone number 1-5
+          /(?:rating|rate|give|give it|i'd give|i give|difficulty|difficult|was|is).*?([1-5])/i,
+          /(?:^|\s|it's|it was|maybe|probably|about|around|like|say|think|guess).*?([1-5])(?:\s|$|out|star|point)/i,
+          /\b([1-5])\b/  // Standalone number 1-5 (most permissive, check last)
         ];
         
         for (const pattern of difficultyPatterns) {
@@ -434,10 +490,13 @@ export class ConversationService {
           if (match) {
             const num = parseFloat(match[1] || match[0]);
             if (num >= 1 && num <= 5 && !isNaN(num)) {
+              console.log(`Matched pattern, extracted: ${num}`);
               return num;
             }
           }
         }
+        
+        console.log('No difficulty pattern matched');
         // Only accept numeric 1-5 - no sentiment-based fallback for lecture difficulty
         return null;
         
@@ -623,21 +682,27 @@ export class ConversationService {
   getCollectedReview() {
     const data = this.conversationState.collectedData;
     
+    console.log('getCollectedReview - collectedData:', data);
+    console.log('getCollectedReview - difficulty value:', data.difficulty, 'type:', typeof data.difficulty);
+    
     // Build tags based on collected data for lecture experience
     const tags = [];
-    if (data.difficulty >= 4) tags.push('CHALLENGING LECTURE');
-    if (data.difficulty <= 2) tags.push('EASY TO FOLLOW');
+    if (data.difficulty && typeof data.difficulty === 'number' && data.difficulty >= 4) tags.push('CHALLENGING LECTURE');
+    if (data.difficulty && typeof data.difficulty === 'number' && data.difficulty <= 2) tags.push('EASY TO FOLLOW');
     if (data.professorFeedback && data.professorFeedback.toLowerCase().includes('well')) tags.push('GREAT PROFESSOR');
     if (data.professorFeedback && (data.professorFeedback.toLowerCase().includes('better') || data.professorFeedback.toLowerCase().includes('improve'))) tags.push('ROOM FOR IMPROVEMENT');
     
-    return {
+    const reviewData = {
       courseCode: data.courseCode || 'Unknown',
       lectureTopics: data.lectureTopics || '',
-      difficulty: data.difficulty || null,
+      difficulty: (typeof data.difficulty === 'number' && !isNaN(data.difficulty)) ? data.difficulty : null,
       easyHard: data.easyHard || '',
       professorFeedback: data.professorFeedback || '',
       tags: tags.slice(0, 5) // Limit to 5 tags
     };
+    
+    console.log('getCollectedReview - returning:', reviewData);
+    return reviewData;
   }
 
   // Reset conversation

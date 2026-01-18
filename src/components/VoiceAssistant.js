@@ -21,6 +21,7 @@ function VoiceAssistant({ onComplete, onClose }) {
   const isProcessingRef = useRef(false); // Ref to track processing state
   const isSpeakingRef = useRef(false); // Ref to track speaking state
   const handleFinishResponseRef = useRef(null); // Ref to store handleFinishResponse function
+  const isStoppedRef = useRef(false); // Ref to track if conversation was stopped
 
   // Define speakMessage and startListening functions first (before useEffect that uses them)
   // This ensures they're available when the useEffect runs
@@ -29,6 +30,12 @@ function VoiceAssistant({ onComplete, onClose }) {
   const speakMessage = async (text) => {
     if (!text) {
       console.warn('No text provided to speakMessage');
+      return;
+    }
+    
+    // Check if conversation was stopped
+    if (isStoppedRef.current) {
+      console.log('Conversation stopped, not speaking message');
       return;
     }
     
@@ -46,20 +53,53 @@ function VoiceAssistant({ onComplete, onClose }) {
     isSpeakingRef.current = true;
     
     try {
+      // Check again before speaking (might have been stopped during async operations)
+      if (isStoppedRef.current) {
+        console.log('Conversation stopped before speaking');
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        return;
+      }
+      
       console.log('Calling ElevenLabs speak with:', text.substring(0, 50) + '...');
       const result = await elevenLabsService.speak(text);
+      
+      // Check if stopped during async operation
+      if (isStoppedRef.current) {
+        console.log('Conversation stopped during speech');
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        // Force stop audio in case it's still playing
+        elevenLabsService.stopAudio();
+        return;
+      }
+      
       console.log('ElevenLabs speak result:', result);
+      
+      // If result is null and we're stopped, don't try browser TTS
+      if (!result && isStoppedRef.current) {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        return;
+      }
       
       // If ElevenLabs returns null or false, fall back to browser TTS
       // Only use browser TTS if ElevenLabs completely fails (not both)
-      if (!result) {
+      if (!result && !isStoppedRef.current) {
         console.log('ElevenLabs returned false/null, falling back to browser speech synthesis');
-        if ('speechSynthesis' in window) {
+        if ('speechSynthesis' in window && !isStoppedRef.current) {
           // Ensure no other speech is playing
           window.speechSynthesis.cancel();
           
           // Wait a moment to ensure any ongoing ElevenLabs audio is stopped
           await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Check again before browser TTS
+          if (isStoppedRef.current) {
+            setIsSpeaking(false);
+            isSpeakingRef.current = false;
+            return;
+          }
           
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.rate = 1.0;
@@ -67,7 +107,18 @@ function VoiceAssistant({ onComplete, onClose }) {
           utterance.volume = 1.0;
           
           await new Promise((resolve, reject) => {
+            // Check if stopped before setting up handlers
+            if (isStoppedRef.current) {
+              window.speechSynthesis.cancel();
+              reject(new Error('Stopped'));
+              return;
+            }
+            
             utterance.onend = () => {
+              if (isStoppedRef.current) {
+                reject(new Error('Stopped'));
+                return;
+              }
               console.log('Browser TTS completed');
               resolve();
             };
@@ -83,24 +134,36 @@ function VoiceAssistant({ onComplete, onClose }) {
         }
       }
     } catch (error) {
+      // If error is because we stopped, just return
+      if (isStoppedRef.current || error.message === 'Stopped' || error.message === 'Audio playback was stopped') {
+        console.log('Speech was stopped');
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+        return;
+      }
+      
       console.error('Error in speakMessage:', error);
       console.error('Error details:', error.message, error.stack);
       // Final fallback: try browser TTS even if there was an error
-      // But only if ElevenLabs didn't already succeed
-      if ('speechSynthesis' in window) {
+      // But only if ElevenLabs didn't already succeed and not stopped
+      if ('speechSynthesis' in window && !isStoppedRef.current) {
         try {
           window.speechSynthesis.cancel();
           // Wait a moment before speaking
           await new Promise(resolve => setTimeout(resolve, 200));
-          const utterance = new SpeechSynthesisUtterance(text);
-          window.speechSynthesis.speak(utterance);
+          if (!isStoppedRef.current) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            window.speechSynthesis.speak(utterance);
+          }
         } catch (ttsError) {
           console.error('Browser TTS also failed:', ttsError);
         }
       }
     } finally {
-      setIsSpeaking(false);
-      isSpeakingRef.current = false;
+      if (!isStoppedRef.current) {
+        setIsSpeaking(false);
+        isSpeakingRef.current = false;
+      }
     }
   };
 
@@ -169,6 +232,9 @@ function VoiceAssistant({ onComplete, onClose }) {
     elevenLabsService.initializeVoice().catch(err => {
       console.warn('Could not initialize voice:', err);
     });
+    
+    // Reset stopped flag when component mounts
+    isStoppedRef.current = false;
     
     // Initialize speech recognition if available
     console.log('VoiceAssistant: Initializing speech recognition...');
@@ -254,10 +320,14 @@ function VoiceAssistant({ onComplete, onClose }) {
   const cleanupAll = () => {
     console.log('Cleaning up voice assistant - stopping all audio and recognition');
     
+    // Mark as stopped to prevent any further operations
+    isStoppedRef.current = true;
+    
     // Stop speech recognition
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
+        recognitionRef.current.abort(); // Force abort recognition
       } catch (error) {
         // Ignore errors during cleanup
       }
@@ -265,14 +335,16 @@ function VoiceAssistant({ onComplete, onClose }) {
       setIsListening(false);
     }
     
-    // Stop all audio playback
+    // Stop all audio playback IMMEDIATELY
     // Stop ElevenLabs audio
     elevenLabsService.stopAudio();
     
-    // Stop browser TTS
+    // Stop browser TTS IMMEDIATELY
     if ('speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
+        // Also stop any pending utterances
+        window.speechSynthesis.pause();
       } catch (error) {
         console.warn('Error stopping browser TTS:', error);
       }
@@ -284,7 +356,7 @@ function VoiceAssistant({ onComplete, onClose }) {
       autoFinishTimeoutRef.current = null;
     }
     
-    // Reset state
+    // Reset state IMMEDIATELY
     setIsListening(false);
     setIsSpeaking(false);
     setIsProcessing(false);
@@ -574,95 +646,58 @@ function VoiceAssistant({ onComplete, onClose }) {
   });
 
   return (
-    <div className="voice-assistant-overlay">
-      <div className="voice-assistant-modal">
-        <div className="voice-assistant-header">
-          <h2>Voice Feedback Assistant</h2>
-          <button className="close-btn" onClick={() => {
+    <>
+      {/* Status bar - always visible when component is mounted */}
+      <div className="voice-assistant-status-bar">
+        <div className="status-bar-content">
+          {isListening && (
+            <div className="listening-indicator-mini">
+              <div className="pulse-ring-mini"></div>
+              <span className="listening-text-mini">🎤 Listening...</span>
+            </div>
+          )}
+          {isSpeaking && (
+            <span className="status-mini">🎙️ Speaking...</span>
+          )}
+          {isProcessing && (
+            <span className="status-mini">⏳ Processing...</span>
+          )}
+          {!isListening && !isSpeaking && !isProcessing && (
+            <span className="status-mini">Ready</span>
+          )}
+        </div>
+        
+        <button
+          className="finish-btn-mini"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleFinishResponse();
+          }}
+          disabled={
+            (!pendingTranscriptRef.current && !pendingTranscript && !currentTranscript) || 
+            isSpeaking || 
+            isProcessing ||
+            isProcessingRef.current ||
+            isSpeakingRef.current
+          }
+          aria-label="Finish and send response"
+        >
+          ✓ Finish
+        </button>
+        
+        <button
+          className="stop-btn-mini"
+          onClick={() => {
             cleanupAll();
             onClose();
-          }} aria-label="Close">
-            ×
-          </button>
-        </div>
-
-        <div className="voice-assistant-messages">
-          {messages.map((msg, index) => (
-            <div key={index} className={`message ${msg.type}`}>
-              <div className="message-content">
-                {msg.message}
-              </div>
-              <div className="message-time">
-                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <div className="voice-assistant-controls">
-          <div className="voice-status-display">
-            {isListening && (
-              <div className="listening-indicator">
-                <div className="pulse-ring"></div>
-                <span className="listening-text">🎤 Listening...</span>
-              </div>
-            )}
-            {isSpeaking && (
-              <span className="status">🎙️ Speaking...</span>
-            )}
-            {isProcessing && (
-              <span className="status">⏳ Processing...</span>
-            )}
-            {!isListening && !isSpeaking && !isProcessing && (
-              <span className="status">Ready - will start listening automatically</span>
-            )}
-            {isListening && currentTranscript && (
-              <span className="status">💬 Heard: {currentTranscript.substring(0, 50)}{currentTranscript.length > 50 ? '...' : ''}</span>
-            )}
-          </div>
-          
-          <div className="control-buttons">
-            <button
-              className="finish-btn"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('Finish button clicked - current values:', {
-                  pendingTranscriptRef: pendingTranscriptRef.current,
-                  pendingTranscript: pendingTranscript,
-                  currentTranscript: currentTranscript,
-                  isSpeaking: isSpeaking,
-                  isProcessing: isProcessing
-                });
-                handleFinishResponse();
-              }}
-              disabled={
-                (!pendingTranscriptRef.current && !pendingTranscript && !currentTranscript) || 
-                isSpeaking || 
-                isProcessing ||
-                isProcessingRef.current ||
-                isSpeakingRef.current
-              }
-              aria-label="Finish and send response"
-            >
-              ✓ Finish Response
-            </button>
-            
-            <button
-              className="stop-btn"
-              onClick={() => {
-                cleanupAll();
-                onClose();
-              }}
-              aria-label="Stop conversation"
-            >
-              Stop & Close
-            </button>
-          </div>
-        </div>
+          }}
+          aria-label="Stop conversation"
+        >
+          Stop
+        </button>
       </div>
-    </div>
+    </>
   );
 }
 

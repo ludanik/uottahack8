@@ -8,6 +8,8 @@ function SummaryPage({ reviewData, conversationHistory, onApprove, onCancel }) {
   const [isPosting, setIsPosting] = useState(false);
 
   useEffect(() => {
+    console.log('SummaryPage - reviewData received:', reviewData);
+    console.log('SummaryPage - difficulty value:', reviewData.difficulty, 'type:', typeof reviewData.difficulty);
     generateSummary();
   }, []);
 
@@ -99,7 +101,15 @@ function SummaryPage({ reviewData, conversationHistory, onApprove, onCancel }) {
                 <div className="preview-header">
                   <span className="preview-course">{reviewData.courseCode || reviewData.course || 'Course'}</span>
                   <div className="preview-ratings">
-                    <span className="rating-badge difficulty">Difficulty: {(typeof reviewData.difficulty === 'number' && !isNaN(reviewData.difficulty)) ? Math.round(reviewData.difficulty) : 'N/A'}</span>
+                    <span className="rating-badge difficulty">
+                      Difficulty: {
+                        (typeof reviewData.difficulty === 'number' && !isNaN(reviewData.difficulty)) 
+                          ? Math.round(reviewData.difficulty) 
+                          : (reviewData.difficulty !== null && reviewData.difficulty !== undefined)
+                            ? reviewData.difficulty
+                            : 'N/A'
+                      }
+                    </span>
                   </div>
                 </div>
                 <div className="preview-comment" style={{ whiteSpace: 'pre-line' }}>

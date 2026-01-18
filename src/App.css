@@ -26,6 +26,18 @@
   border: 2px solid #000;
 }
 
+.header-logo {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.header-logo:hover {
+  opacity: 0.8;
+}
+
 .nav {
   display: flex;
   align-items: center;
